@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="de"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Karte</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+html,body{margin:0;height:100%;font:13px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#0b0b0b;background:#f9f9f7}
+#karte{position:absolute;inset:0}
+.panel{position:absolute;z-index:1000;background:#fcfcfb;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.28)}
+#filter{top:10px;left:56px;width:290px;max-height:calc(100% - 20px);overflow:auto;padding:10px 12px;box-sizing:border-box}
+#filter h1{font-size:14px;margin:0 0 2px;display:flex;gap:8px;justify-content:space-between;align-items:flex-start}
+#zu{border:0;background:#f0efec;border-radius:4px;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1;flex:none}
+#filter.klein .einklappbar{display:none}
+#filter .stand{color:#52514e;font-size:11px;margin-bottom:8px}
+#filter details,#filter .block{border-top:1px solid #e6e5e0;padding:6px 0}
+#filter summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+#filter summary::after{content:"▾";color:#52514e}
+#filter details:not([open]) summary::after{content:"▸"}
+#filter label{display:flex;align-items:center;gap:6px;padding:1px 0;cursor:pointer}
+#filter label .anz{margin-left:auto;color:#52514e;font-variant-numeric:tabular-nums}
+#filter .knopf{font-size:11px;color:#2a78d6;cursor:pointer;margin-right:8px;background:none;border:0;padding:0}
+#filter .titel{font-weight:600;margin-bottom:4px}
+#filter select,#filter input[type=search]{font:inherit;padding:3px 6px;border:1px solid #c3c2b7;border-radius:4px;background:#fff;box-sizing:border-box}
+#suche{width:100%}
+.zeile{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.k{display:inline-block;width:11px;height:11px;border-radius:3px;flex:none}
+#legende div{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+#summe{border-top:1px solid #e6e5e0;padding-top:8px;margin-top:4px;font-variant-numeric:tabular-nums}
+#summe .m,.m{color:#52514e;font-size:11px}
+.aktion{font:inherit;font-size:12px;border:1px solid #c3c2b7;background:#fff;border-radius:4px;padding:3px 8px;cursor:pointer}
+.pp{min-width:300px}
+.pp .t{font-weight:700;font-size:15px}.pp .s{color:#52514e;margin-bottom:6px}
+.pp table{border-collapse:collapse;width:100%;margin:4px 0}
+.pp th{text-align:left;font-weight:600;color:#52514e;padding:1px 8px 1px 0;vertical-align:top;white-space:nowrap}
+.pp .w th,.pp .w td{border-bottom:1px solid #e6e5e0;padding:2px 4px}
+.pp .r{text-align:right;font-variant-numeric:tabular-nums}
+.pp .n{color:#52514e;font-size:11px}
+.pp .abg{background:#f0efec;border-left:3px solid #7a7a76;padding:2px 6px;margin:4px 0}
+.pp a{color:#2a78d6}
+.fnr{background:none;border:0;box-shadow:none;font-size:11px;font-weight:600;color:#5a2a1a;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;padding:0}
+.luftbild .fnr{color:#fff7cc;text-shadow:0 0 3px #000,0 0 3px #000}
+.zoomhinweis{background:#fcfcfb;padding:2px 6px;border-radius:4px;font-size:11px;color:#52514e;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.leaflet-control-scale-line:nth-child(2){display:none}
+#start{position:absolute;inset:0;z-index:2000;background:rgba(249,249,247,.96);display:flex;align-items:center;justify-content:center}
+#start .box{background:#fcfcfb;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.2);padding:28px 32px;max-width:460px;text-align:center}
+#start h2{margin:0 0 8px;font-size:18px}
+#start .drop{margin-top:14px;border:2px dashed #c3c2b7;border-radius:8px;padding:22px;color:#52514e}
+#start .drop.aktiv{border-color:#2a78d6;color:#2a78d6}
+#start .fehler{color:#b3261e;margin-top:10px}
+#einnahmen{position:absolute;z-index:1500;top:10px;right:10px;bottom:30px;width:min(640px,calc(100% - 20px));background:#fcfcfb;
+  border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.25);padding:14px 16px;overflow:auto;display:none;font-size:13px}
+#einnahmen h3{margin:0 0 2px;font-size:16px}
+#einnahmen .zu{position:absolute;top:8px;right:10px;border:0;background:none;font-size:20px;cursor:pointer;color:#52514e}
+#einnahmen table{border-collapse:collapse;width:100%;margin-top:6px}
+#einnahmen th{text-align:left;color:#52514e;font-weight:600;border-bottom:1px solid #c3c2b7;padding:3px 4px}
+#einnahmen td{border-bottom:1px solid #e6e5e0;padding:3px 4px;vertical-align:top}
+#einnahmen tr.klick{cursor:pointer}#einnahmen tr.klick:hover td{background:#eef4fc}
+#einnahmen .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#einnahmen td:nth-child(5){white-space:nowrap}
+#einnahmen .stapel{display:flex;height:18px;border-radius:3px;overflow:hidden;margin:6px 0 2px}
+#einnahmen .chips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 2px}
+#einnahmen .chip{font:inherit;font-size:12px;border:1px solid #c3c2b7;background:#fff;border-radius:12px;padding:2px 10px;cursor:pointer;color:#52514e}
+#einnahmen .chip.an{background:#2f4858;border-color:#2f4858;color:#fff}
+#einnahmen .chip span{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}
+.warn{color:#b3261e;font-weight:700;cursor:help}
+.pp .wid{background:#fbe3e2;border-left:3px solid #c43d3c;padding:4px 8px;margin:4px 0 6px;font-size:12px}
+.pp .wid ul{margin:2px 0 0;padding-left:16px}
+#einnahmen .leg span{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 10px;vertical-align:-1px}
+@media print{
+  #filter details,#filter .block.suche,#filter .knoepfe,.leaflet-control-layers,.leaflet-control-zoom,#zu,.zoomhinweis{display:none!important}
+  #filter{max-height:none;box-shadow:none;border:1px solid #c3c2b7}
+}
+</style></head><body>
+<div id="karte"></div>
+<div id="start" style="display:none"><div class="box">
+  <h2>Karte</h2>
+  <div>Bitte die Excel-Datei auswählen.<br>Die Datei wird nur in diesem Browser gelesen und nicht hochgeladen.</div>
+  <div class="drop" id="drop">Datei hierher ziehen oder<br><br><input type="file" id="datei" accept=".xlsx,.xlsm"></div>
+  <div class="fehler" id="fehler"></div>
+</div></div>
+<div id="filter" class="panel">
+  <h1><span id="titel">Karte</span><button id="zu" title="Ein-/ausklappen">–</button></h1>
+  <div class="stand einklappbar" id="stand"></div>
+  <div class="block suche einklappbar">
+    <input type="search" id="suche" list="suchliste" placeholder="Suchen …">
+    <datalist id="suchliste"></datalist>
+  </div>
+  <div class="block einklappbar">
+    <div class="titel">Einfärben nach</div>
+    <div class="zeile">
+      <select id="modus"></select>
+      <select id="jahrA"></select><span id="bis" style="display:none">→</span><select id="jahrB" style="display:none"></select>
+    </div>
+    <div id="legende" style="margin-top:6px"></div>
+  </div>
+  <div id="gruppen" class="einklappbar"></div>
+  <div id="summe"></div>
+  <div class="zeile knoepfe einklappbar" style="margin-top:8px">
+    <button class="aktion" id="einnahmenKnopf">Einnahmen ansehen</button>
+    <button class="aktion" id="drucken">Drucken / als PDF speichern</button>
+    <button class="aktion" id="neuladen">Andere Datei laden</button>
+  </div>
+</div>
+<div id="einnahmen"><button class="zu" title="schließen">×</button><div id="einnahmenInhalt"></div></div>
+<script>
+"use strict";
+// Alle Beschriftungen, Felder, Farben und Dienste kommen aus der Datei (Blatt „Karte“). Die Seite selbst enthält keine Daten.
+const DATEN = null;
+const GRAU = "#7a7a76";
+const BLAU = ["#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"];
+const DIVERGENT = ["#c43d3c", "#f2a5a4", "#f0efec", "#86b6ef", "#1c5cab"];
+const PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#8a5cc2", "#e8b400", "#c43d3c", "#1c5cab", "#86b6ef", "#c9c7c0", "#52514e"];
+const ESC = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = (n, d=0) => n == null || isNaN(n) ? "–" : n.toLocaleString("de-DE", {minimumFractionDigits: d, maximumFractionDigits: d});
+const ja = v => /^(ja|j|x|1|true|yes)$/i.test(String(v ?? "").trim());
+
+// Konfiguration (aus Blatt „Karte“): Schlüssel, Felder, Werte/Farben
+let K = {}, FELDER = [], WERTE = {}, FARBE = {};
+const feld = c => FELDER.find(f => f.code === c) || {code: c, titel: c};
+const titel = c => feld(c).titel || c;
+const AKTIV = () => K.aktiv || "aktiv";
+const aktiv = l => l.st === AKTIV();
+
+// ---------------------------------------------------------------- Karte & Hintergründe
+const karte = L.map("karte").setView([51.2, 10.4], 6);
+L.control.scale({imperial: false}).addTo(karte);
+let basis = {}, ueber = {}, ebenen = null, grenzen = L.layerGroup();
+function ll2utm(lat, lon) {
+  const a = 6378137, f = 1 / 298.257222101, k0 = 0.9996, e2 = f * (2 - f), ep2 = e2 / (1 - e2);
+  const p = lat * Math.PI / 180, l = (lon - 9) * Math.PI / 180;
+  const N = a / Math.sqrt(1 - e2 * Math.sin(p) ** 2), T = Math.tan(p) ** 2, C = ep2 * Math.cos(p) ** 2, A = l * Math.cos(p);
+  const M = a * ((1 - e2 / 4 - 3 * e2 ** 2 / 64 - 5 * e2 ** 3 / 256) * p - (3 * e2 / 8 + 3 * e2 ** 2 / 32 + 45 * e2 ** 3 / 1024) * Math.sin(2 * p)
+            + (15 * e2 ** 2 / 256 + 45 * e2 ** 3 / 1024) * Math.sin(4 * p) - (35 * e2 ** 3 / 3072) * Math.sin(6 * p));
+  return [500000 + k0 * N * (A + (1 - T + C) * A ** 3 / 6 + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * A ** 5 / 120),
+          k0 * (M + N * Math.tan(p) * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * A ** 4 / 24 + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * A ** 6 / 720))];
+}
+// Orthofoto-WMS in UTM abgerufen und je Kachelviertel affin auf die Web-Mercator-Kachel gezeichnet (nahtlos, < 1 px Abweichung)
+const DopLayer = L.GridLayer.extend({
+  options: {tileSize: 512, maxZoom: 20},
+  createTile(coords, done) {
+    const ts = this.getTileSize().x, r = Math.min(2, Math.ceil(window.devicePixelRatio || 1));
+    const tile = document.createElement("canvas");
+    tile.width = tile.height = ts * r;
+    const nw = coords.scaleBy(this.getTileSize());
+    const utm = (dx, dy) => { const ll = this._map.unproject([nw.x + dx, nw.y + dy], coords.z); return ll2utm(ll.lat, ll.lng); };
+    const H = ts / 2, ecken = {};
+    for (const dx of [0, H, ts]) for (const dy of [0, H, ts]) ecken[dx + "," + dy] = utm(dx, dy);
+    const alle = Object.values(ecken);
+    let e0 = Math.min(...alle.map(p => p[0])), e1 = Math.max(...alle.map(p => p[0]));
+    let n0 = Math.min(...alle.map(p => p[1])), n1 = Math.max(...alle.map(p => p[1]));
+    const res = (e1 - e0) / (ts * r);
+    e0 -= 2 * res; e1 += 2 * res; n0 -= 2 * res; n1 += 2 * res;
+    const W = Math.round((e1 - e0) / res), Hh = Math.round((n1 - n0) / res);
+    const img = new Image();
+    img.onload = () => {
+      const ctx = tile.getContext("2d");
+      const bild = ([E, N]) => [(E - e0) / (e1 - e0) * W, (n1 - N) / (n1 - n0) * Hh];
+      for (const [qx, qy] of [[0, 0], [H, 0], [0, H], [H, H]]) {
+        const P = [[qx, qy], [qx + H, qy], [qx, qy + H]].map(([x, y]) => [x * r, y * r]);
+        const I = [[qx, qy], [qx + H, qy], [qx, qy + H]].map(([x, y]) => bild(ecken[x + "," + y]));
+        const u1 = [I[1][0] - I[0][0], I[1][1] - I[0][1]], u2 = [I[2][0] - I[0][0], I[2][1] - I[0][1]];
+        const v1 = [P[1][0] - P[0][0], P[1][1] - P[0][1]], v2 = [P[2][0] - P[0][0], P[2][1] - P[0][1]];
+        const det = u1[0] * u2[1] - u2[0] * u1[1];
+        const a = (v1[0] * u2[1] - v2[0] * u1[1]) / det, c = (v2[0] * u1[0] - v1[0] * u2[0]) / det;
+        const b = (v1[1] * u2[1] - v2[1] * u1[1]) / det, d = (v2[1] * u1[0] - v1[1] * u2[0]) / det;
+        const e = P[0][0] - a * I[0][0] - c * I[0][1], f = P[0][1] - b * I[0][0] - d * I[0][1];
+        ctx.save();
+        ctx.beginPath(); ctx.rect(qx * r - 1, qy * r - 1, H * r + 2, H * r + 2); ctx.clip();
+        ctx.setTransform(a, b, c, d, e, f);
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
+      }
+      done(null, tile);
+    };
+    img.onerror = () => done(new Error("Bild nicht geladen"), tile);
+    img.src = K.dop + "?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=" + encodeURIComponent(K.dop_ebene || "") + "&STYLES=&SRS=EPSG:25832&FORMAT=image/jpeg"
+      + "&WIDTH=" + W + "&HEIGHT=" + Hh + "&BBOX=" + [e0, n0, e1, n1].map(v => v.toFixed(2)).join(",");
+    return tile;
+  },
+});
+function ebenenAufbauen() {
+  if (ebenen) { ebenen.remove(); Object.values(basis).forEach(l => karte.removeLayer(l)); Object.values(ueber).forEach(l => l !== grenzen && karte.removeLayer(l)); }
+  const jahr = new Date().getFullYear();
+  basis = {"Karte": L.tileLayer(K.basiskarte || "https://sgx.geodatenzentrum.de/wmts_basemapde/tile/1.0.0/de_basemapde_web_raster_farbe/default/GLOBAL_WEBMERCATOR/{z}/{y}/{x}.png",
+                                {maxZoom: 20, maxNativeZoom: 18, attribution: K.basiskarte_quelle || "© GeoBasis-DE / BKG (" + jahr + ") CC BY 4.0"})};
+  if (K.dop) basis["Luftbild"] = new DopLayer({attribution: K.quelle || ""});
+  ueber = {["Grenzen (ab Zoom " + GRENZ_ZOOM + ")"]: grenzen};
+  if (K.wms && K.zonen_ebene) ueber["Richtwertzonen (aktuell)"] = L.tileLayer.wms(K.wms, {layers: K.zonen_ebene, format: "image/png", transparent: true, tileSize: 512, zoomOffset: -1, minZoom: 13, maxZoom: 20, opacity: .8, attribution: K.quelle || ""});
+  if (K.wms && K.label_ebene) ueber["Richtwerte – Beschriftung (ab Zoom 15)"] = L.tileLayer.wms(K.wms, {layers: K.label_ebene, format: "image/png", transparent: true, tileSize: 512, zoomOffset: -1, minZoom: 15, maxZoom: 20, attribution: K.quelle || ""});
+  basis["Karte"].addTo(karte);
+  if (!karte.hasLayer(grenzen)) grenzen.addTo(karte);
+  ebenen = L.control.layers(basis, ueber, {collapsed: false, position: "topright"}).addTo(karte);
+  document.body.classList.remove("luftbild");
+}
+karte.on("baselayerchange", e => document.body.classList.toggle("luftbild", e.name.startsWith("Luftbild")));
+
+// ---------------------------------------------------------------- Grenzen live aus dem Kataster-WFS (kachelweise, Canvas)
+const GRENZ_ZOOM = 16, NUMMER_ZOOM = 18;
+const KACHEL_LAT = 0.0064, KACHEL_LON = 0.0098, MAX_FLAECHEN = 40000, PARALLEL = 4;
+const grenzRenderer = L.canvas({padding: 0.5});
+const geladen = new Map();
+const kacheln = new Set();
+let ladeLauf = 0;
+function grenzStil() {
+  const luft = document.body.classList.contains("luftbild");
+  return {color: luft ? "#ffd400" : "#8a3324", weight: 1, opacity: .85, fill: false, interactive: false, renderer: grenzRenderer};
+}
+function parseGml(text) {
+  const doc = new DOMParser().parseFromString(text, "text/xml");
+  const out = [];
+  for (const m of doc.getElementsByTagNameNS("*", "Flurstueck")) {
+    const id = m.getAttribute("gml:id") || m.getAttributeNS("http://www.opengis.net/gml/3.2", "id");
+    const ringe = [];
+    for (const pl of m.getElementsByTagNameNS("*", "posList")) {
+      const v = pl.textContent.trim().split(/\s+/).map(Number), r = [];
+      for (let i = 0; i + 1 < v.length; i += 2) r.push([v[i], v[i + 1]]);
+      ringe.push(r);
+    }
+    const t = n => (m.getElementsByTagNameNS("*", n)[0] || {}).textContent || "";
+    out.push({id, ringe, nr: t("flstnrzae") + (t("flstnrnen") ? "/" + t("flstnrnen") : "")});
+  }
+  return out;
+}
+function grenzenLeeren() { grenzen.clearLayers(); geladen.clear(); kacheln.clear(); }
+async function ladeKachel(i, j) {
+  const s = i * KACHEL_LAT, w = j * KACHEL_LON;
+  const url = K.wfs + "?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=ave:Flurstueck&COUNT=5000"
+    + "&PROPERTYNAME=ave:geometrie,ave:flstnrzae,ave:flstnrnen"
+    + "&SRSNAME=urn:ogc:def:crs:EPSG::4326&BBOX=" + [s, w, s + KACHEL_LAT, w + KACHEL_LON].map(x => x.toFixed(6)).join(",") + ",urn:ogc:def:crs:EPSG::4326";
+  const r = await fetch(url);
+  const fl = parseGml(await r.text());
+  if (karte.getZoom() < GRENZ_ZOOM || !karte.hasLayer(grenzen)) return;
+  kacheln.add(i + "," + j);
+  for (const f of fl) {
+    if (geladen.has(f.id) || !f.ringe.length) continue;
+    const linie = L.polygon(f.ringe, grenzStil());
+    const nummer = L.tooltip({permanent: true, direction: "center", className: "fnr", interactive: false})
+      .setLatLng(linie.getBounds().getCenter()).setContent(f.nr);
+    geladen.set(f.id, {linie, nummer});
+    linie.addTo(grenzen);
+  }
+}
+async function ladeGrenzen() {
+  const lauf = ++ladeLauf;
+  if (!K.wfs) return;
+  if (!karte.hasLayer(grenzen) || karte.getZoom() < GRENZ_ZOOM) { if (karte.getZoom() < GRENZ_ZOOM) grenzenLeeren(); return; }
+  if (geladen.size > MAX_FLAECHEN) grenzenLeeren();
+  const b = karte.getBounds().pad(0.2), offen = [];
+  for (let i = Math.floor(b.getSouth() / KACHEL_LAT); i <= Math.floor(b.getNorth() / KACHEL_LAT); i++)
+    for (let j = Math.floor(b.getWest() / KACHEL_LON); j <= Math.floor(b.getEast() / KACHEL_LON); j++)
+      if (!kacheln.has(i + "," + j)) offen.push([i, j]);
+  const m = karte.getCenter(), mi = m.lat / KACHEL_LAT, mj = m.lng / KACHEL_LON;
+  offen.sort((x, y) => Math.hypot(x[0] + .5 - mi, x[1] + .5 - mj) - Math.hypot(y[0] + .5 - mi, y[1] + .5 - mj));
+  const arbeiter = Array.from({length: PARALLEL}, async () => {
+    while (offen.length && lauf === ladeLauf) {
+      const [i, j] = offen.shift();
+      try { await ladeKachel(i, j); } catch (e) { console.warn("Grenzen:", e); }
+      nummernAnpassen();
+    }
+  });
+  await Promise.all(arbeiter);
+  nummernAnpassen();
+}
+function nummernAnpassen() {
+  const zeigen = karte.getZoom() >= NUMMER_ZOOM, b = karte.getBounds();
+  for (const {nummer} of geladen.values()) {
+    const an = zeigen && b.contains(nummer.getLatLng());
+    if (an && !grenzen.hasLayer(nummer)) nummer.addTo(grenzen); else if (!an && grenzen.hasLayer(nummer)) grenzen.removeLayer(nummer);
+  }
+}
+karte.on("moveend overlayadd", ladeGrenzen);
+karte.on("baselayerchange", () => { for (const {linie} of geladen.values()) linie.setStyle(grenzStil()); });
+const zh = L.control({position: "bottomright"});
+zh.onAdd = () => { const d = L.DomUtil.create("div", "zoomhinweis"); d.innerHTML = "Grenzen erscheinen ab Zoomstufe " + GRENZ_ZOOM; return d; };
+zh.addTo(karte);
+const pruefeZoom = () => zh.getContainer().style.display = K.wfs && karte.hasLayer(grenzen) && karte.getZoom() < GRENZ_ZOOM ? "block" : "none";
+karte.on("zoomend overlayadd overlayremove", pruefeZoom);
+
+// ---------------------------------------------------------------- Einträge
+let LISTE = [], JAHRE = [], eintraege = [];
+const auswahl = {};
+const PR = "pr", PR_MIT = "mit offenem Punkt", PR_OHNE = "ohne offenen Punkt", PR_WEG = "nicht mehr im Bestand";
+const filterFelder = () => FELDER.filter(f => f.filter);
+const faerbFelder = () => FELDER.filter(f => f.faerben);
+const nurAktiv = c => c === PR || feld(c).nuraktiv;
+
+function portalLink(l) {
+  if (!K.portal || !l.x || !l.y) return "";
+  const d = 60, z = [l.x - d, l.y - d, l.x + d, l.y + d].map(v => Math.round(v)).join(",");
+  return `<a href="${ESC(K.portal)}${z}" target="_blank" rel="noopener">${ESC(K.portal_text || "Im Portal öffnen")}</a>`;
+}
+function balken(werte, breite = 230) {
+  const jahre = Object.keys(werte || {}).sort();
+  if (!jahre.length) return "";
+  const max = Math.max(...jahre.map(j => werte[j])) || 1, h = 16;
+  const zeilen = jahre.map(j => {
+    const w = Math.max(2, Math.round(werte[j] / max * (breite - 120)));
+    return `<div style="display:flex;align-items:center;gap:6px;height:${h}px"><span style="width:34px;color:#52514e">${j}</span>` +
+      `<span style="display:inline-block;width:${w}px;height:10px;background:#2a78d6;border-radius:2px"></span>` +
+      `<span style="font-variant-numeric:tabular-nums">${fmt(werte[j], 2)} €</span></div>`;
+  }).join("");
+  return zeilen + (jahre.length === 1 ? `<div class="n">nur ein Jahr bekannt (${jahre[0]})</div>` : "");
+}
+function popup(l) {
+  let zeilen = "";
+  for (const j of [...JAHRE].reverse()) {
+    const w = l.werte[j];
+    if (w == null && !l.notizen[j]) continue;
+    const bw = w != null && l.fl ? w * l.fl : null;
+    zeilen += `<tr><td>${j}</td><td class="r">${w == null ? "–" : fmt(w, 2) + " €"}</td><td class="r">${bw == null ? "–" : fmt(bw) + " €"}</td></tr>`;
+    if (l.notizen[j]) zeilen += `<tr><td></td><td colspan="2" class="n">${ESC(l.notizen[j])}</td></tr>`;
+  }
+  const abg = aktiv(l) ? "" : `<div class="abg">${ESC(l.a1 || l.st)} ${ESC(l.a2 || "")}${l.a3 ? " → " + ESC(l.a3) : ""}</div>`;
+  const anzeige = FELDER.filter(f => f.anzeige != null).sort((a, b) => a.anzeige - b.anzeige);
+  const zeile = (k, v) => `<tr><th>${ESC(k)}</th><td>${v}</td></tr>`;
+  let tab = "";
+  for (const f of anzeige) {
+    const c = f.code;
+    if (c === "fl") { tab += zeile(f.titel, l.fl ? fmt(l.fl) + " m²" : "–"); continue; }
+    if (c === "nu") {
+      let v = ESC(l.nu && l.nu !== "–" ? l.nu : "keine Angabe");
+      if (l.vt) v += " · " + ESC(l.vt);
+      if (K.ausgelaufen && l.nu === K.ausgelaufen && l.er) v += `<br><span class=n>zuletzt bekannt: ${ESC(l.ea || "")} ${typeof l.er === "number" ? fmt(l.er, 2) : ESC(l.er)} €/Jahr</span>`;
+      tab += zeile(f.titel, v); continue;
+    }
+    if (c === "ei") {
+      if (aktErtrag(l)) tab += zeile(f.titel, balken(l.einnahmen));
+      else if (l.am) tab += zeile(f.titel, `${ESC(l.ea || "Betrag")} wird über ${ESC(l.am)} abgerechnet (dort enthalten)`);
+      continue;
+    }
+    if (["id", "nr", "g1", "g2", "wd", "st", "a1", "a2", "a3"].includes(c)) continue;
+    const v = l[c];
+    if (v == null || v === "" ) continue;
+    tab += zeile(f.titel + (c === "k4" && !aktiv(l) ? " (bis zum Abgang)" : ""), ESC(v));
+  }
+  return `<div class="pp"><div class="t">${ESC(l.id)}</div>
+    <div class="s">${[l.g1, l.g2, l.nr ? titel("nr") + " " + l.nr : ""].filter(Boolean).map(ESC).join(" · ")}</div>${abg}
+    ${l.wd ? `<div class="wid"><b>⚠ ${ESC(titel("wd"))}</b><ul>${String(l.wd).split(" | ").map(x => `<li>${ESC(x)}</li>`).join("")}</ul></div>` : ""}
+    <table>${tab}</table>
+    ${zeilen ? `<table class="w"><tr><th>Stichtag</th><th class="r">€/m²</th><th class="r">Wert</th></tr>${zeilen}</table>` : ""}
+    <div style="margin-top:6px">${portalLink(l)}</div></div>`;
+}
+
+const modusEl = document.getElementById("modus"), jahrA = document.getElementById("jahrA"), jahrB = document.getElementById("jahrB");
+const MIT_JAHR = ["brw", "bw", "delta"];
+function klasse(wert, g) { let i = 0; while (i < g.length && wert >= g[i]) i++; return i; }
+const GRENZEN = {brw: [10, 100, 400, 800], bw: [10000, 100000, 500000, 1000000], delta: [-0.2, -0.02, 0.02, 0.2], ertrag: [100, 1000, 5000, 20000]};
+const letztesJahr = l => { const j = Object.keys(l.einnahmen || {}).sort(); return j.length ? j[j.length - 1] : null; };
+const aktErtrag = l => { const j = letztesJahr(l); return j ? l.einnahmen[j] : null; };
+// Farbe eines Kategoriewerts: aus der Datei, sonst Palette nach Reihenfolge
+function wertFarbe(code, wert) {
+  const t = FARBE[code] || (FARBE[code] = {});
+  if (wert in t) return t[wert];
+  const vorgabe = (WERTE[code] || []).find(w => w.wert === wert);
+  if (vorgabe && vorgabe.farbe) return t[wert] = vorgabe.farbe;
+  const n = Object.keys(t).length;
+  return t[wert] = PALETTE[n % PALETTE.length];
+}
+function wertReihe(code) {
+  const aus = (WERTE[code] || []).map(w => w.wert), da = new Set(LISTE.filter(aktiv).map(l => l[code]).filter(v => v && v !== "–"));
+  return [...aus.filter(v => da.has(v)), ...[...da].filter(v => !aus.includes(v)).sort()];
+}
+function farbe(l) {
+  const m = modusEl.value;
+  if (m === "st") return wertFarbe("st", l.st);
+  if (!aktiv(l)) return GRAU;
+  if (m === "ertrag") { const x = aktErtrag(l); return x ? BLAU[klasse(x, GRENZEN.ertrag)] : null; }
+  if (m === "widerspruch") return l.wd ? "#c43d3c" : "#c9c7c0";
+  if (!MIT_JAHR.includes(m)) return l[m] && l[m] !== "–" ? wertFarbe(m, l[m]) : "#52514e";
+  const a = l.werte[jahrA.value];
+  if (m === "brw") return a == null ? null : BLAU[klasse(a, GRENZEN.brw)];
+  if (m === "bw") return a == null || !l.fl ? null : BLAU[klasse(a * l.fl, GRENZEN.bw)];
+  const b = l.werte[jahrB.value];
+  if (a == null || b == null || a === 0) return null;
+  return DIVERGENT[klasse((b - a) / a, GRENZEN.delta)];
+}
+function legende() {
+  const m = modusEl.value, box = document.getElementById("legende");
+  jahrA.style.display = MIT_JAHR.includes(m) ? "" : "none";
+  jahrB.style.display = document.getElementById("bis").style.display = m === "delta" ? "" : "none";
+  const reihe = (c, t) => `<div><span class="k" style="background:${c}"></span>${ESC(t)}</div>`;
+  let h = "";
+  if (m === "brw") h = ["unter 10", "10 – 100", "100 – 400", "400 – 800", "ab 800"].map((t, i) => reihe(BLAU[i], t + " €/m²")).join("");
+  else if (m === "bw") h = ["unter 10.000", "10.000 – 100.000", "100.000 – 500.000", "500.000 – 1 Mio.", "ab 1 Mio."].map((t, i) => reihe(BLAU[i], t + " €")).join("");
+  else if (m === "ertrag") h = ["unter 100", "100 – 1.000", "1.000 – 5.000", "5.000 – 20.000", "ab 20.000"].map((t, i) => reihe(BLAU[i], t + " € pro Jahr")).join("");
+  else if (m === "delta") h = ["Rückgang über 20 %", "Rückgang 2 – 20 %", "etwa gleich (± 2 %)", "Anstieg 2 – 20 %", "Anstieg über 20 %"].map((t, i) => reihe(DIVERGENT[i], t)).join("");
+  else if (m === "widerspruch") h = reihe("#c43d3c", "offener Punkt (Details im Popup)") + reihe("#c9c7c0", "keiner bekannt");
+  else if (m === "st") h = [...new Set([...(WERTE.st || []).map(w => w.wert), ...LISTE.map(l => l.st)])].map(w => reihe(wertFarbe("st", w), w)).join("");
+  else h = wertReihe(m).map(w => reihe(wertFarbe(m, w), w)).join("") + reihe("#52514e", "ohne Angabe");
+  if (MIT_JAHR.includes(m)) h += `<div><span class="k" style="background:#fff;border:1.5px dashed #898781"></span>kein Wert</div>`;
+  if (m !== "st") h += `<div><span class="k" style="background:#fff;border:2px dashed ${GRAU}"></span>${ESC(wegText())}</div>`;
+  box.innerHTML = h;
+}
+const wegText = () => [...new Set(LISTE.filter(l => !aktiv(l)).map(l => l.st))].join("/") || "abgegangen";
+function stile() {
+  for (const e of eintraege) {
+    const c = farbe(e.l), ak = aktiv(e.l), leer = c == null;
+    const f = leer ? "#ffffff" : c;
+    const st = modusEl.value === "st";
+    const s = st
+      ? {color: ak ? "#ffffff" : c, weight: ak ? 2 : 3, fillColor: f, fillOpacity: .6, dashArray: ak ? null : "6 4"}
+      : {color: ak ? (leer ? "#898781" : "#ffffff") : GRAU, weight: ak ? 2 : 2.5, fillColor: f,
+         fillOpacity: ak ? (leer ? .3 : .6) : .15, dashArray: ak && !leer ? null : "6 4"};
+    e.flaeche && e.flaeche.setStyle(s);
+    e.basisStil = s;
+    e.punkt.setStyle({fillColor: f, color: leer ? "#898781" : "#ffffff"});
+  }
+  legende(); summe();
+}
+
+function aufbauen() {
+  JAHRE = [...new Set(LISTE.flatMap(l => Object.keys(l.werte)))].sort();
+  jahrA.innerHTML = jahrB.innerHTML = JAHRE.map(j => `<option>${j}</option>`).join("");
+  jahrA.value = JAHRE[JAHRE.length - 1] || ""; jahrB.value = jahrA.value;
+  if (JAHRE.length > 1) jahrA.value = JAHRE[JAHRE.length - 2];
+  // Einfärbemodi: Kategoriefelder aus der Datei + feste Auswertungen
+  const modi = [...faerbFelder().map(f => [f.code, f.titel]),
+    ["brw", "Richtwert (€/m²)"], ["bw", "Wert (€)"], ["ertrag", "Einnahmen (€/Jahr)"], ["widerspruch", titel("wd")], ["delta", "Veränderung €/m² (%)"]];
+  modusEl.innerHTML = modi.map(([v, t]) => `<option value="${ESC(v)}">${ESC(t)}</option>`).join("");
+  modusEl.value = modi[0][0];
+  eintraege.forEach(e => karte.removeLayer(e.gruppe));
+  eintraege = LISTE.map(l => {
+    const teile = [];
+    let flaeche = null;
+    if (l.geometrie) { flaeche = L.geoJSON(l.geometrie); teile.push(flaeche); }
+    const punkt = L.circleMarker([l.lat, l.lon], {radius: aktiv(l) ? 6 : 5, color: "#ffffff", weight: 2, fillOpacity: 1});
+    teile.push(punkt);
+    const gruppe = L.featureGroup(teile).bindTooltip(l.id + " · " + (l.ad || "")).bindPopup(() => popup(l), {maxWidth: 400});
+    const e = {l, gruppe, flaeche, punkt};
+    gruppe.on("mouseover", () => flaeche && flaeche.setStyle({weight: 4, fillOpacity: .8}));
+    gruppe.on("mouseout", () => flaeche && flaeche.setStyle(e.basisStil));
+    return e;
+  });
+  const box = document.getElementById("gruppen");
+  box.innerHTML = "";
+  for (const k in auswahl) delete auswahl[k];
+  const gruppen = [...filterFelder().map(f => [f.code, f.titel, f.offen]), [PR, titel("wd"), true]];
+  gruppen.forEach(([code, tit, offen]) => {
+    const werte = {};
+    LISTE.forEach(l => { if (nurAktiv(code) && !aktiv(l)) return; const v = l[code] ?? ""; werte[v] = (werte[v] || 0) + 1; });
+    auswahl[code] = new Set(Object.keys(werte));
+    const d = document.createElement("details");
+    if (offen) d.open = true;
+    d.innerHTML = `<summary>${ESC(tit)}</summary><div><button class="knopf" data-a="alle">alle</button><button class="knopf" data-a="keine">keine</button></div>`;
+    Object.keys(werte).sort().forEach(w => {
+      const lab = document.createElement("label");
+      const k = feld(code).faerben ? `<span class="k" style="background:${wertFarbe(code, w)}"></span>`
+              : code === PR && w === PR_MIT ? `<span class="warn">⚠</span>` : "";
+      lab.innerHTML = `<input type="checkbox" checked>${k}<span>${ESC(w)}</span><span class="anz">${werte[w]}</span>`;
+      lab.querySelector("input").addEventListener("change", ev => { ev.target.checked ? auswahl[code].add(w) : auswahl[code].delete(w); anwenden(); });
+      lab.querySelector("input").dataset.w = w;
+      d.appendChild(lab);
+    });
+    d.querySelectorAll(".knopf").forEach(b => b.addEventListener("click", ev => {
+      ev.preventDefault(); const an = b.dataset.a === "alle";
+      d.querySelectorAll("input[type=checkbox]").forEach(x => { x.checked = an; an ? auswahl[code].add(x.dataset.w) : auswahl[code].delete(x.dataset.w); });
+      anwenden();
+    }));
+    box.appendChild(d);
+  });
+  document.getElementById("suchliste").innerHTML = LISTE.map(l => `<option value="${ESC(l.id)}">${ESC(l.ad)} · ${ESC(l.g1)} ${ESC(l.g2)}</option>`).join("");
+  const sichtbar = anwenden();
+  stile();
+  if (sichtbar.length) karte.fitBounds(L.featureGroup(sichtbar).getBounds(), {padding: [30, 30]});
+}
+function anwenden() {
+  const sichtbar = [];
+  const codes = Object.keys(auswahl);
+  for (const e of eintraege) {
+    const an = codes.every(c => (nurAktiv(c) && !aktiv(e.l)) || auswahl[c].has(String(e.l[c] ?? "")));
+    if (an) { e.gruppe.addTo(karte); sichtbar.push(e.gruppe); } else karte.removeLayer(e.gruppe);
+  }
+  summe();
+  return sichtbar;
+}
+function summe() {
+  const j = MIT_JAHR.includes(modusEl.value) ? jahrA.value : JAHRE[JAHRE.length - 1];
+  let n = 0, fl = 0, bw = 0, ertrag = 0, wid = 0;
+  for (const e of eintraege) {
+    if (!karte.hasLayer(e.gruppe)) continue;
+    const w = e.l.werte[j]; if (w != null && e.l.fl) bw += w * e.l.fl;
+    if (!aktiv(e.l)) continue;
+    n++; fl += e.l.fl || 0; ertrag += aktErtrag(e.l) || 0; if (e.l.wd) wid++;
+  }
+  const ohne = LISTE.filter(l => !l.geometrie && aktiv(l)).map(l => l.id);
+  document.getElementById("summe").innerHTML =
+    `<div><b>Auswahl:</b> ${n} aktive Einträge</div><div>${fmt(fl)} m² · Wert ${j || ""} (Bestand am Stichtag): <b>${fmt(bw)} €</b></div>` +
+    `<div>Einnahmen${K.einnahmen_text ? " (" + ESC(K.einnahmen_text) + ")" : ""}, letztes bekanntes Jahr: <b>${fmt(ertrag, 2)} € pro Jahr</b></div>` +
+    (wid ? `<div><span class="warn">⚠</span> ${ESC(titel("wd"))}: ${wid} Einträge (Filter bzw. Einfärben)</div>` : "") +
+    (ohne.length ? `<div class="m">Ohne Umriss: ${ohne.map(ESC).join(", ")}</div>` : "") +
+    `<div class="m">Klick auf Fläche oder Punkt für Details</div>`;
+}
+const artVon = l => l.ea || "";
+const laufendMit = l => !!l.am && !aktErtrag(l) && !(K.ausgelaufen && l.nu === K.ausgelaufen);
+const warnung = l => l.wd ? ` <span class="warn" title="${ESC(String(l.wd).split(" | ").join("\n"))}">⚠</span>` : "";
+const artAus = new Set();
+function einnahmenZeigen() {
+  const sichtbar = eintraege.filter(e => karte.hasLayer(e.gruppe) && aktiv(e.l)).map(e => e.l);
+  const art = l => artVon(l) || "ohne Art";
+  const alleMit = sichtbar.filter(l => aktErtrag(l)), alleMitab = sichtbar.filter(laufendMit);
+  const zahl = {};
+  [...alleMit, ...alleMitab].forEach(l => zahl[art(l)] = (zahl[art(l)] || 0) + 1);
+  const reihe = (WERTE.ea || []).map(w => w.wert);
+  const arten = Object.keys(zahl).sort((a, b) => (reihe.indexOf(a) + 1 || 99) - (reihe.indexOf(b) + 1 || 99));
+  const fa = a => wertFarbe("ea", a);
+  const gewaehlt = l => !artAus.has(art(l));
+  const mit = alleMit.filter(gewaehlt).sort((a, b) => aktErtrag(b) - aktErtrag(a));
+  const mitab = alleMitab.filter(gewaehlt);
+  const summe = mit.reduce((s, l) => s + aktErtrag(l), 0);
+  const jeArt = {};
+  mit.forEach(l => { const a = art(l); jeArt[a] = (jeArt[a] || 0) + aktErtrag(l); });
+  const jeJahr = {};
+  sichtbar.filter(gewaehlt).forEach(l => Object.entries(l.einnahmen || {}).forEach(([j, v]) => jeJahr[j] = (jeJahr[j] || 0) + v));
+  const stapel = Object.entries(jeArt).sort((a, b) => b[1] - a[1]).map(([a, v]) =>
+    `<div title="${ESC(a)}: ${fmt(v, 2)} €" style="width:${(v / summe * 100).toFixed(2)}%;background:${fa(a)}"></div>`).join("");
+  const leg = Object.entries(jeArt).sort((a, b) => b[1] - a[1]).map(([a, v]) =>
+    `<span style="background:${fa(a)}"></span>${ESC(a)} ${fmt(v)} € (${Math.round(v / summe * 100)} %)`).join("");
+  const chips = `<div class="chips"><button class="chip ${artAus.size ? "" : "an"}" data-art="*">Alle Arten</button>` +
+    arten.map(a => `<button class="chip ${artAus.has(a) ? "" : "an"}" data-art="${ESC(a)}"><span style="background:${fa(a)}"></span>${ESC(a)} (${zahl[a]})</button>`).join("") + `</div>`;
+  const zeile = l => `<tr class="klick" data-id="${ESC(l.id)}"><td>${ESC(l.id)}${warnung(l)}<div class="m">${ESC(l.ad || "")}</div></td>` +
+    `<td>${ESC(art(l))}</td><td class="r">${fmt(aktErtrag(l), 2)} €</td><td>${ESC(letztesJahr(l))}</td><td>${ESC(l.vt || "")}</td></tr>`;
+  const zeileMit = l => `<tr class="klick" data-id="${ESC(l.id)}"><td style="padding-left:16px">↳ ${ESC(l.id)}${warnung(l)}<div class="m">${ESC(l.ad || "")}</div></td>` +
+    `<td>${ESC(art(l))}</td><td class="r m" style="white-space:normal">in ${ESC(l.am)} enthalten</td><td></td><td>${ESC(l.vt || "")}</td></tr>`;
+  const ids = new Set(mit.map(l => l.id));
+  const tabelle = mit.map(l => zeile(l) + mitab.filter(m => m.am === l.id).map(zeileMit).join("")).join("")
+    + mitab.filter(m => !ids.has(m.am)).map(zeileMit).join("");
+  const ohne = {};
+  sichtbar.filter(l => !aktErtrag(l) && !laufendMit(l)).forEach(l => (ohne[l.nu || "keine Angabe"] = ohne[l.nu || "keine Angabe"] || []).push(l));
+  const ohneHtml = Object.entries(ohne).sort().map(([n, ls]) =>
+    `<tr><td colspan="5"><b>${ESC(n)}</b> (${ls.length}): ` + ls.map(l => `<a href="#" data-id="${ESC(l.id)}">${ESC(l.id)}</a>${warnung(l)}`).join(", ") +
+    (K.ausgelaufen && n === K.ausgelaufen && K.hinweis_ausgelaufen ? `<div class="m">${ESC(K.hinweis_ausgelaufen)}</div>` : "") +
+    `</td></tr>`).join("");
+  const jahre = Object.keys(jeJahr).sort();
+  document.getElementById("einnahmenInhalt").innerHTML =
+    `<h3>Einnahmen</h3><div class="m">${K.einnahmen_text ? ESC(K.einnahmen_text) + " der " : ""}ausgewählten Einträge (Filter links) · letztes bekanntes Jahr je Eintrag</div>` +
+    chips +
+    `<div style="font-size:20px;font-weight:700;margin-top:6px">${fmt(summe, 2)} € pro Jahr</div>` +
+    `<div class="m">${mit.length} Einträge mit eigenem Betrag${mitab.length ? `, dazu ${mitab.length} über einen anderen Eintrag abgerechnet (↳)` : ""}</div>` +
+    (summe ? `<div class="stapel">${stapel}</div><div class="leg m">${leg}</div>` : "") +
+    (jahre.length > 1 ? `<div style="margin-top:10px"><b>Verlauf (Summe der erfassten Beträge je Jahr)</b>${balken(jeJahr, 360)}` +
+                        `<div class="m">Ein Jahr zählt nur die Einträge, für die in diesem Jahr ein Betrag eingetragen ist.</div></div>`
+                      : `<div class="m" style="margin-top:6px">Verlauf: bisher nur ${jahre[0] || "kein"} Jahr erfasst.</div>`) +
+    `<table><tr><th>Eintrag</th><th>Art</th><th class="r">€/Jahr</th><th>Jahr</th><th>Vertrag</th></tr>${tabelle}</table>` +
+    `<div style="margin-top:12px"><b>Ohne laufende Einnahmen</b></div><table>${ohneHtml}</table>`;
+  document.getElementById("einnahmen").style.display = "block";
+}
+document.getElementById("einnahmenKnopf").addEventListener("click", einnahmenZeigen);
+document.querySelector("#einnahmen .zu").addEventListener("click", () => document.getElementById("einnahmen").style.display = "none");
+document.getElementById("einnahmenInhalt").addEventListener("click", ev => {
+  const c = ev.target.closest("[data-art]");
+  if (c) {
+    const a = c.dataset.art, alle = [...document.querySelectorAll("#einnahmen .chip[data-art]")].map(x => x.dataset.art).filter(x => x !== "*");
+    if (a === "*") artAus.clear();
+    else if (!artAus.size) alle.forEach(x => x !== a && artAus.add(x));
+    else artAus.has(a) ? artAus.delete(a) : artAus.add(a);
+    einnahmenZeigen(); return;
+  }
+  const t = ev.target.closest("[data-id]"); if (!t) return;
+  ev.preventDefault(); document.getElementById("einnahmen").style.display = "none"; suchen(t.dataset.id);
+});
+function suchen(text) {
+  const t = text.trim().toLowerCase();
+  if (!t) return;
+  const e = eintraege.find(e => e.l.id.toLowerCase() === t) || eintraege.find(e =>
+    [e.l.id, e.l.ad, e.l.g1 + " " + e.l.g2, e.l.nr].some(s => String(s ?? "").toLowerCase().includes(t)));
+  if (!e) return;
+  if (!karte.hasLayer(e.gruppe)) e.gruppe.addTo(karte);
+  karte.setView([e.l.lat, e.l.lon], Math.max(karte.getZoom(), 18));
+  setTimeout(() => e.gruppe.openPopup([e.l.lat, e.l.lon]), 300);
+}
+const suche = document.getElementById("suche");
+suche.addEventListener("change", () => suchen(suche.value));
+suche.addEventListener("keydown", ev => { if (ev.key === "Enter") suchen(suche.value); });
+[modusEl, jahrA, jahrB].forEach(el => el.addEventListener("change", stile));
+document.getElementById("drucken").addEventListener("click", () => window.print());
+document.getElementById("zu").addEventListener("click", () => {
+  const f = document.getElementById("filter"); f.classList.toggle("klein");
+  document.getElementById("zu").textContent = f.classList.contains("klein") ? "+" : "–";
+});
+
+// ---------------------------------------------------------------- UTM 32N -> geographische Koordinaten
+function utm2ll(E, N) {
+  const a = 6378137, f = 1 / 298.257222101, k0 = 0.9996, e2 = f * (2 - f), ep2 = e2 / (1 - e2), lon0 = 9 * Math.PI / 180;
+  const x = E - 500000, M = N / k0;
+  const mu = M / (a * (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 ** 3 / 256));
+  const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+  const p1 = mu + (3 * e1 / 2 - 27 * e1 ** 3 / 32) * Math.sin(2 * mu) + (21 * e1 * e1 / 16 - 55 * e1 ** 4 / 32) * Math.sin(4 * mu)
+           + (151 * e1 ** 3 / 96) * Math.sin(6 * mu) + (1097 * e1 ** 4 / 512) * Math.sin(8 * mu);
+  const C1 = ep2 * Math.cos(p1) ** 2, T1 = Math.tan(p1) ** 2, N1 = a / Math.sqrt(1 - e2 * Math.sin(p1) ** 2);
+  const R1 = a * (1 - e2) / (1 - e2 * Math.sin(p1) ** 2) ** 1.5, D = x / (N1 * k0);
+  const lat = p1 - (N1 * Math.tan(p1) / R1) * (D * D / 2 - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * ep2) * D ** 4 / 24
+            + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * ep2 - 3 * C1 * C1) * D ** 6 / 720);
+  const lon = lon0 + (D - (1 + 2 * T1 + C1) * D ** 3 / 6 + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * ep2 + 24 * T1 * T1) * D ** 5 / 120) / Math.cos(p1);
+  return {lat: lat * 180 / Math.PI, lon: lon * 180 / Math.PI};
+}
+
+// ---------------------------------------------------------------- Start
+function starten(konf, liste, stand) {
+  K = konf.schluessel || {}; FELDER = konf.felder || []; WERTE = konf.werte || {}; FARBE = {};
+  LISTE = liste;
+  const t = K.titel || document.title;
+  document.title = t; document.getElementById("titel").textContent = t;
+  LISTE.forEach(l => { l[PR] = !aktiv(l) ? PR_WEG : (l.wd ? PR_MIT : PR_OHNE); });
+  ebenenAufbauen(); pruefeZoom();
+  document.getElementById("stand").textContent = stand;
+  aufbauen();
+}
+async function umriss(kennz) {
+  if (!K.wfs || !K.umriss_abfrage) return null;
+  const url = K.wfs + "?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&STOREDQUERY_ID=" + encodeURIComponent(K.umriss_abfrage) + "&CRS=EPSG:4326&kennzeichen=" + encodeURIComponent(kennz);
+  try {
+    const f = parseGml(await (await fetch(url)).text())[0];
+    if (!f || !f.ringe.length) return null;
+    return {type: "Polygon", coordinates: f.ringe.map(r => r.map(([la, lo]) => [lo, la]))};
+  } catch (e) { return null; }
+}
+if (DATEN) {
+  starten(DATEN.konf, DATEN.liste, DATEN.stand);
+} else {
+  const start = document.getElementById("start"), fehler = document.getElementById("fehler");
+  start.style.display = "flex";
+  const zahl = v => v === "" || v == null ? null : (typeof v === "number" ? v : Number(String(v).replace(/\./g, "").replace(",", ".")));
+  // Blatt „Karte“: Schlüssel/Wert-Zeilen, dann Tabellen „Feld | Beschriftung …“ und „Feld | Wert | Farbe“
+  function konfiguration(wb) {
+    const ws = wb.Sheets[K_BLATT];
+    if (!ws) throw new Error("Blatt „" + K_BLATT + "“ nicht gefunden – ist das die richtige Datei?");
+    const z = XLSX.utils.sheet_to_json(ws, {header: 1, defval: ""});
+    const schluessel = {}, felder = [], werte = {};
+    let tab = null, kopf = null;
+    for (const r of z) {
+      const a = String(r[0] ?? "").trim();
+      if (!a) { tab = null; continue; }
+      if (a === "Feld" && r[1] === "Beschriftung") { tab = "felder"; kopf = r.map(String); continue; }
+      if (a === "Feld" && r[1] === "Wert") { tab = "werte"; continue; }
+      if (a === "Wert" && r[1] === "Art") { tab = "sonst"; continue; }
+      if (tab === "felder") {
+        const o = {}; kopf.forEach((k, i) => o[k] = r[i]);
+        felder.push({code: a, titel: String(o.Beschriftung || a), anzeige: o.Anzeige === "" || o.Anzeige == null ? null : Number(o.Anzeige),
+                     filter: ja(o.Filter), faerben: ja(o["Einfärben"]), nuraktiv: ja(o["Nur aktiv"]), offen: ja(o.Offen)});
+      } else if (tab === "werte") {
+        (werte[a] = werte[a] || []).push({wert: String(r[1]), farbe: String(r[2] || "").trim() || null});
+      } else if (tab === "sonst") {
+      } else if (r[1] !== "" && r[1] != null) schluessel[a] = typeof r[1] === "number" ? r[1] : String(r[1]).trim();
+    }
+    return {schluessel, felder, werte};
+  }
+  const K_BLATT = "Karte";
+  function zeilenAus(wb, name) {
+    const ws = wb.Sheets[name];
+    if (!ws) return [];
+    const zeilen = XLSX.utils.sheet_to_json(ws, {defval: ""});
+    return zeilen.filter(z => z.id && zahl(z.x) && zahl(z.y));
+  }
+  async function lesen(datei) {
+    fehler.textContent = "";
+    try {
+      const wb = XLSX.read(await datei.arrayBuffer(), {type: "array"});
+      const konf = konfiguration(wb);
+      const S = konf.schluessel;
+      // Einnahmen je Eintrag und Jahr
+      const einnahmen = {};
+      const eb = wb.Sheets[S.blatt_einnahmen || "Einnahmen"];
+      if (eb) {
+        const ez = XLSX.utils.sheet_to_json(eb, {header: 1, defval: ""});
+        for (const z of ez.slice(Number(S.kopf_einnahmen || 1))) {
+          const b = zahl(z[2]);
+          if (z[0] && z[1] && b != null) (einnahmen[z[0]] = einnahmen[z[0]] || {})[String(z[1])] = b;
+        }
+      }
+      let zeilen = zeilenAus(wb, S.blatt_daten || "Kartendaten"), quelle = "";
+      if (!zeilen.length && S.blatt_stand) { zeilen = zeilenAus(wb, S.blatt_stand); quelle = " · Stand beim Erzeugen der Datei (noch nicht in Excel berechnet)"; }
+      if (!zeilen.length) throw new Error("Keine Einträge gefunden – ist das die richtige Datei?");
+      const jahre = Object.keys(zeilen[0]).filter(k => /^w\d{4}$/.test(k)).map(k => k.slice(1));
+      const liste = zeilen.map(z => {
+        const l = {...z, werte: {}, notizen: {}};
+        for (const j of jahre) { const w = zahl(z["w" + j]); if (w != null) l.werte[j] = w; if (z["n" + j]) l.notizen[j] = z["n" + j]; delete l["w" + j]; delete l["n" + j]; }
+        for (const k of Object.keys(l)) if (/^[_]/.test(k)) delete l[k];
+        l.id = String(z.id); l.st = String(z.st || S.aktiv || "aktiv"); l.fl = zahl(z.fl); l.x = zahl(z.x); l.y = zahl(z.y);
+        const er = zahl(z.er); l.er = er != null && !isNaN(er) ? er : (z.er || null);
+        Object.assign(l, utm2ll(l.x, l.y));
+        l.einnahmen = l.st === (S.aktiv || "aktiv") ? (einnahmen[l.id] || {}) : {};
+        if (l.st !== (S.aktiv || "aktiv")) { l.am = ""; l.wd = ""; }
+        return l;
+      });
+      start.style.display = "none";
+      const stand = "Datei vom " + new Date(datei.lastModified).toLocaleDateString("de-DE") + quelle;
+      K = S;
+      document.getElementById("stand").textContent = stand + " · Umrisse werden geladen …";
+      await Promise.all(liste.map(async l => { if (l.nr) l.geometrie = await umriss(l.nr); }));
+      starten(konf, liste, stand);
+    } catch (e) { fehler.textContent = e.message; start.style.display = "flex"; }
+  }
+  document.getElementById("datei").addEventListener("change", ev => ev.target.files[0] && lesen(ev.target.files[0]));
+  const drop = document.getElementById("drop");
+  ["dragenter", "dragover"].forEach(t => start.addEventListener(t, ev => { ev.preventDefault(); drop.classList.add("aktiv"); }));
+  ["dragleave", "drop"].forEach(t => start.addEventListener(t, ev => { ev.preventDefault(); drop.classList.remove("aktiv"); }));
+  start.addEventListener("drop", ev => ev.dataTransfer.files[0] && lesen(ev.dataTransfer.files[0]));
+  const neu = document.getElementById("neuladen");
+  if (neu) neu.addEventListener("click", () => { start.style.display = "flex"; });
+}
+</script>
+</body></html>
